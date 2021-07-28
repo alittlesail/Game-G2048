@@ -1,6 +1,9 @@
 -- ALittle Generate Lua And Do Not Edit This Line!
 do
 if _G.G2048 == nil then _G.G2048 = {} end
+local G2048 = G2048
+local Lua = Lua
+local ALittle = ALittle
 local ___rawset = rawset
 local ___pairs = pairs
 local ___ipairs = ipairs
@@ -31,7 +34,7 @@ end
 function G2048.GCenter:Setup()
 	G2048.g_GConfig = ALittle.CreateConfigSystem(G2048.g_ModuleBasePath .. "/User.cfg")
 	ALittle.Math_RandomSeed(ALittle.Time_GetCurTime())
-	ALittle.System_SetThreadCount(5, 2)
+	ALittle.System_SetThreadCount(1)
 	self._main_layer = ALittle.DisplayLayout(G2048.g_Control)
 	self._main_layer.width_type = 4
 	self._main_layer.height_type = 4
@@ -44,6 +47,14 @@ function G2048.GCenter:Setup()
 	G2048.g_Control:CreateControl("main_scene", self, self._main_layer)
 	self._max_score_text._user_data = G2048.g_GConfig:GetConfig("max_score", 0)
 	self._max_score_text.text = self._max_score_text._user_data
+	if deeplearning ~= nil and deeplearning.DeeplearningDQNModel ~= nil then
+		local state_num = 16
+		local action_num = 4
+		self._dqn_model = deeplearning.DeeplearningDQNModel(state_num, action_num, 100, 2000)
+		self._dqn_model_path = G2048.g_ModuleBasePath .. "/Other/g2048_" .. state_num .. "_" .. action_num .. ".model"
+		self._dqn_model:Load(self._dqn_model_path)
+		self._dqn_timer = A_LoopSystem:AddTimer(10, Lua.Bind(self.HandleDqnPlay, self), -1, 10)
+	end
 	self:Restart()
 end
 
@@ -113,7 +124,6 @@ function G2048.GCenter:GenerateItem(delay_time)
 end
 
 function G2048.GCenter:CalcLeft()
-	local moved = false
 	local i = 1
 	while true do
 		if not(i <= 4) then break end
@@ -497,6 +507,92 @@ function G2048.GCenter:HandleKeyDown(event)
 	end
 end
 
+function G2048.GCenter:CalcState()
+	local state = {}
+	local index = 1
+	local i = 1
+	while true do
+		if not(i <= 4) then break end
+		local j = 1
+		while true do
+			if not(j <= 4) then break end
+			local item = self._data_map[i][j]
+			if item == nil then
+				state[index] = 0
+			else
+				state[index] = item._user_data
+			end
+			index = index + (1)
+			j = j+(1)
+		end
+		i = i+(1)
+	end
+	return state
+end
+
+function G2048.GCenter:CalcReward()
+	local score = 0.0
+	local count = 0
+	local total = 0
+	local i = 1
+	while true do
+		if not(i < 4) then break end
+		local j = 1
+		while true do
+			if not(j < 4) then break end
+			local item = self._data_map[i][j]
+			if item ~= nil then
+				total = total + (item._user_data)
+				count = count + (1)
+			end
+			j = j+(1)
+		end
+		i = i+(1)
+	end
+	local mean = 0.0
+	if count > 0 then
+		mean = total / count
+	end
+	score = score + (mean)
+	local i = 1
+	while true do
+		if not(i < 4) then break end
+		local j = 1
+		while true do
+			if not(j < 4) then break end
+			local item = self._data_map[i][j]
+			local right_item = self._data_map[i][j + 1]
+			if item ~= nil and right_item ~= nil and item._user_data == right_item._user_data then
+				score = score + (item._user_data * (i + j))
+			end
+			local bottom_item = self._data_map[i + 1][j]
+			if item ~= nil and bottom_item ~= nil and item._user_data == bottom_item._user_data then
+				score = score + (item._user_data * (i + j))
+			end
+			j = j+(1)
+		end
+		i = i+(1)
+	end
+	local rate = 1
+	local i = 1
+	while true do
+		if not(i <= 4) then break end
+		local j = 1
+		while true do
+			if not(j <= 4) then break end
+			local value = 0
+			local item = self._data_map[i][j]
+			if item ~= nil then
+				value = item._user_data
+			end
+			score = score + (value * (i + j) * rate)
+			j = j+(1)
+		end
+		i = i+(1)
+	end
+	return score
+end
+
 function G2048.GCenter:HandleDragBegin(event)
 	self._drag_total_x = 0
 	self._drag_total_y = 0
@@ -505,6 +601,69 @@ end
 function G2048.GCenter:HandleDrag(event)
 	self._drag_total_x = self._drag_total_x + event.delta_x
 	self._drag_total_y = self._drag_total_y + event.delta_y
+end
+
+function G2048.GCenter:HandleDqnPlay()
+	local action = 0
+	local state = self:CalcState()
+	if ALittle.Math_RandomInt(1, 1000) < 1000 then
+		action = self._dqn_model:ChooseAction(state)
+	else
+		action = ALittle.Math_RandomInt(0, 3)
+	end
+	self:ClearAnti()
+	self._item_moved = false
+	self._loop_delay = 0
+	if action == 0 then
+		self:CalcRight()
+	elseif action == 1 then
+		self:CalcDown()
+	elseif action == 2 then
+		self:CalcLeft()
+	elseif action == 3 then
+		self:CalcUp()
+	end
+	if self._item_moved == false then
+		local i = 0
+		while true do
+			if not(i <= 3) then break end
+			action = i
+			if action == 0 then
+				self:CalcRight()
+			elseif action == 1 then
+				self:CalcDown()
+			elseif action == 2 then
+				self:CalcLeft()
+			elseif action == 3 then
+				self:CalcUp()
+			end
+			if self._item_moved then
+				break
+			end
+			i = i+(1)
+		end
+	end
+	if self._item_moved then
+		local reward = self:CalcReward()
+		local next_state = self:CalcState()
+		self._dqn_model:SaveTransition(state, action, reward, next_state)
+		local i = 1
+		while true do
+			if not(i <= 32) then break end
+			self._dqn_model:Learn()
+			i = i+(1)
+		end
+	end
+	if self:CheckGameOver() then
+		return
+	end
+	if self._item_moved == false then
+		return
+	end
+	self:GenerateItem(self._loop_delay)
+	if self:CheckGameOver() then
+		return
+	end
 end
 
 function G2048.GCenter:HandleDragEnd(event)
@@ -545,11 +704,19 @@ function G2048.GCenter:CheckGameOver()
 			if not(j <= 4) then break end
 			local item = self._data_map[i][j]
 			if item ~= nil and item._user_data == 2048 then
+				ALittle.Log("Victory")
 				self:ShowMainMenu("Victory", false)
 				if self._max_score_text._user_data < self._score_text._user_data then
 					self._max_score_text._user_data = self._score_text._user_data
 					self._max_score_text.text = self._max_score_text._user_data
 					G2048.g_GConfig:SetConfig("max_score", self._max_score_text._user_data, nil)
+				end
+				if self._dqn_model ~= nil then
+					self._dqn_model:Save(self._dqn_model_path)
+					if self._dqn_timer ~= nil then
+						A_LoopSystem:RemoveTimer(self._dqn_timer)
+						self._dqn_timer = nil
+					end
 				end
 				return true
 			end
@@ -584,6 +751,15 @@ function G2048.GCenter:CheckGameOver()
 		i = i+(1)
 	end
 	self:ShowMainMenu("GameOver", false)
+	if self._max_score_text._user_data < self._score_text._user_data then
+		self._max_score_text._user_data = self._score_text._user_data
+		self._max_score_text.text = self._max_score_text._user_data
+		G2048.g_GConfig:SetConfig("max_score", self._max_score_text._user_data, nil)
+	end
+	if self._dqn_model ~= nil then
+		self._dqn_model:Save(self._dqn_model_path)
+		self:Restart()
+	end
 	return true
 end
 
@@ -600,6 +776,14 @@ function G2048.GCenter:HandleMenuClick(event)
 end
 
 function G2048.GCenter:Shutdown()
+	if self._dqn_model ~= nil then
+		self._dqn_model:Save(self._dqn_model_path)
+		self._dqn_model = nil
+	end
+	if self._dqn_timer ~= nil then
+		A_LoopSystem:RemoveTimer(self._dqn_timer)
+		self._dqn_timer = nil
+	end
 end
 
 G2048.g_GCenter = G2048.GCenter()

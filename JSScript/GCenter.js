@@ -38,6 +38,13 @@ G2048.GCenter = JavaScript.Class(undefined, {
 		G2048.g_Control.CreateControl("main_scene", this, this._main_layer);
 		this._max_score_text._user_data = G2048.g_GConfig.GetConfig("max_score", 0);
 		this._max_score_text.text = this._max_score_text._user_data;
+		if (deeplearning.DeeplearningDQNModel !== undefined) {
+			let state_num = 3;
+			let action_num = 2;
+			this._dqn_model = ALittle.NewObject(deeplearning.DeeplearningDQNModel, state_num, action_num, 100, 2000);
+			this._dqn_model_path = G2048.g_ModuleBasePath + "/Other/g2048_" + state_num + "_" + action_num + ".model";
+			this._dqn_model.Load(this._dqn_model_path);
+		}
 		this.Restart();
 	},
 	ShowMainMenu : function(content, show_back) {
@@ -447,6 +454,13 @@ G2048.GCenter = JavaScript.Class(undefined, {
 			return;
 		}
 	},
+	CalcState : function() {
+		let state = [];
+		return state;
+	},
+	CalcReward : function(die) {
+		return 100;
+	},
 	HandleDragBegin : function(event) {
 		this._drag_total_x = 0;
 		this._drag_total_y = 0;
@@ -494,6 +508,10 @@ G2048.GCenter = JavaScript.Class(undefined, {
 						this._max_score_text.text = this._max_score_text._user_data;
 						G2048.g_GConfig.SetConfig("max_score", this._max_score_text._user_data, undefined);
 					}
+					if (this._dqn_model !== undefined) {
+						this._dqn_model.Save(this._dqn_model_path);
+						this.Restart();
+					}
 					return true;
 				}
 			}
@@ -531,6 +549,10 @@ G2048.GCenter = JavaScript.Class(undefined, {
 		this.ShowMainMenu("", true);
 	},
 	Shutdown : function() {
+		if (this._dqn_model !== undefined) {
+			this._dqn_model.Save(this._dqn_model_path);
+			this._dqn_model = undefined;
+		}
 	},
 }, "G2048.GCenter");
 

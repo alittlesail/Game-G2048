@@ -1,6 +1,9 @@
 -- ALittle Generate Lua And Do Not Edit This Line!
 do
 if _G.G2048 == nil then _G.G2048 = {} end
+local G2048 = G2048
+local Lua = Lua
+local ALittle = ALittle
 local ___pairs = pairs
 local ___ipairs = ipairs
 
@@ -26,6 +29,14 @@ function G2048.__Module_Setup(layer_group, control, module_base_path, script_bas
 	G2048.g_Control = control
 	G2048.g_LayerGroup = layer_group
 	G2048.g_ModuleBasePath = module_base_path
+	if ALittle.System_GetPlatform() == "Windows" then
+		local deeplearning_path = "Module/ADeeplearning/"
+		package.cpath = package.cpath .. ";./" .. deeplearning_path .. "Other/?.dll"
+		local path = ALittle.File_GetCurrentPath()
+		ALittle.File_SetCurrentPath(path .. "/" .. deeplearning_path .. "Other")
+		require("deeplearning")
+		ALittle.File_SetCurrentPath(path)
+	end
 	Require(script_base_path, "GCenter")
 	G2048.g_GCenter:Setup()
 end

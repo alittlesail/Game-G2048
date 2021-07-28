@@ -38,6 +38,11 @@ class GCenter
     private double _drag_total_x;
     private double _drag_total_y;
 
+    [Language(Lua)]
+    private deeplearning.DeeplearningDQNModel _dqn_model;
+    private string _dqn_model_path;
+    private int _dqn_timer;
+
     public ctor()
     {
 	    this._loop_group = new Map<ALittle.LoopObject, ALittle.LoopObject>();
@@ -81,6 +86,18 @@ class GCenter
         this._max_score_text._user_data = g_GConfig.GetConfig("max_score", 0);
         this._max_score_text.text = this._max_score_text._user_data;
     
+        if (deeplearning != null && deeplearning.DeeplearningDQNModel != null)
+        {
+            var state_num = 16;
+            var action_num = 4;
+            this._dqn_model = new deeplearning.DeeplearningDQNModel(state_num, action_num, 100, 2000);
+
+            this._dqn_model_path = g_ModuleBasePath.."/Other/g2048_"..state_num.."_"..action_num..".model";
+            this._dqn_model.Load(this._dqn_model_path);
+
+            this._dqn_timer = A_LoopSystem.AddTimer(10, bind(this.HandleDqnPlay, this), -1, 10);
+        }
+
         this.Restart();
     }
     
@@ -163,7 +180,6 @@ class GCenter
     
     public fun CalcLeft()
     {
-        var moved = false;
         for (var i = 1; i <= 4; 1)
         {
             // 收集横向的
@@ -649,6 +665,82 @@ class GCenter
         // 检查是否游戏结束
         if (this.CheckGameOver()) return;
     }
+
+    private fun CalcState() : List<double>
+    {
+        var state = new List<double>();
+        var index = 1;
+
+        for (var i = 1; i <= 4; 1)
+        {
+            for (var j = 1; j <= 4; 1)
+            {
+                var item = this._data_map[i][j];
+                if (item == null)
+                    state[index] = 0;
+                else
+                    state[index] = item._user_data;
+                index += 1;
+            }
+        }
+        return state;
+    }
+
+    private fun CalcReward() : double
+    {
+        var score = 0.0;
+
+        // 计算最大的那个数
+        var count = 0;
+        var total = 0;
+        for (var i = 1; i < 4; 1)
+        {
+            for (var j = 1; j < 4; 1)
+            {
+                var item = this._data_map[i][j];
+                if (item != null)
+                {
+                    total += cast<int>(item._user_data);
+                    count += 1;
+                }
+            }
+        }
+        var mean = 0.0;
+        if (count > 0) mean = total / count;
+        score += mean;
+
+        for (var i = 1; i < 4; 1)
+        {
+            for (var j = 1; j < 4; 1)
+            {
+                var item = this._data_map[i][j];
+
+                var right_item = this._data_map[i][j + 1];
+                if (item != null && right_item != null && cast<int>(item._user_data) == cast<int>(right_item._user_data))
+                    score += cast<int>(item._user_data) * (i + j);
+                var bottom_item = this._data_map[i + 1][j];
+                if (item != null && bottom_item != null && cast<int>(item._user_data) == cast<int>(bottom_item._user_data))
+                    score += cast<int>(item._user_data) * (i + j);
+            }
+        }
+
+        var rate = 1;
+
+        for (var i = 1; i <= 4; 1)
+        {
+            for (var j = 1; j <= 4; 1)
+            {
+                var value = 0;
+                var item = this._data_map[i][j];
+                if (item != null)
+                    value = item._user_data;
+
+                score += value * (i + j) * rate;
+            }
+        }
+
+        return score;
+    }
     
     private fun HandleDragBegin(ALittle.UIButtonDragEvent event)
     {
@@ -663,12 +755,75 @@ class GCenter
         this._drag_total_x = this._drag_total_x + event.delta_x;
         this._drag_total_y = this._drag_total_y + event.delta_y;
     }
+
+    private fun HandleDqnPlay()
+    {
+        var action = 0;
+        var state = this.CalcState();
+
+        if (ALittle.Math_RandomInt(1, 1000) < 1000)
+            action = this._dqn_model.ChooseAction(state);
+        else
+            action = ALittle.Math_RandomInt(0, 3);
+
+        // 清除所有动画
+        this.ClearAnti();
+
+        this._item_moved = false;
+        this._loop_delay = 0;
+
+        if (action == 0)
+        	this.CalcRight();
+        elseif (action == 1)
+        	this.CalcDown();
+        elseif (action == 2)
+            this.CalcLeft();
+        elseif (action == 3)
+        	this.CalcUp();
+
+        if (this._item_moved == false)
+        {
+            for (var i = 0; i <= 3; 1)
+            {
+                action = i;
+
+                if (action == 0)
+                    this.CalcRight();
+                elseif (action == 1)
+                    this.CalcDown();
+                elseif (action == 2)
+                    this.CalcLeft();
+                elseif (action == 3)
+                    this.CalcUp();
+
+                if (this._item_moved) break;
+            }
+        }
+
+        if (this._item_moved)
+        {
+            var reward = this.CalcReward();
+            var next_state = this.CalcState();
+            this._dqn_model.SaveTransition(state, action, reward, next_state);
+            for (var i = 1; i <= 32; 1)
+                this._dqn_model.Learn();
+        }
+    
+        // 检查是否游戏结束
+        if (this.CheckGameOver()) return;
+    
+        if (this._item_moved == false) return;
+        this.GenerateItem(this._loop_delay);
+    
+        // 检查是否游戏结束
+        if (this.CheckGameOver()) return;
+    }
     
     private fun HandleDragEnd(ALittle.UIButtonDragEvent event)
     {
         // 清除所有动画
         this.ClearAnti();
-    
+
         this._item_moved = false;
         this._loop_delay = 0;
     
@@ -712,12 +867,23 @@ class GCenter
                 var item = this._data_map[i][j];
                 if (item != null && item._user_data == 2048)
                 {
+                    ALittle.Log("Victory");
                     this.ShowMainMenu("Victory", false);
                     if (cast<int>(this._max_score_text._user_data) < cast<int>(this._score_text._user_data))
                     {
                         this._max_score_text._user_data = this._score_text._user_data;
                         this._max_score_text.text = this._max_score_text._user_data;
                         g_GConfig.SetConfig("max_score", this._max_score_text._user_data, null);
+                    }
+                    if (this._dqn_model != null)
+                    {
+                        this._dqn_model.Save(this._dqn_model_path);
+                        if (this._dqn_timer != null)
+                        {
+                            A_LoopSystem.RemoveTimer(this._dqn_timer);
+                            this._dqn_timer = null;
+                        }
+                        // this.Restart();
                     }
                     return true;
                 }
@@ -755,11 +921,21 @@ class GCenter
                 && (this._data_map[i+1][j] == null
                     || this._data_map[i+1][j]._user_data == item._user_data))
                     return false;
-                    
             }
         }
-    
+
         this.ShowMainMenu("GameOver", false);
+        if (cast<int>(this._max_score_text._user_data) < cast<int>(this._score_text._user_data))
+        {
+            this._max_score_text._user_data = this._score_text._user_data;
+            this._max_score_text.text = this._max_score_text._user_data;
+            g_GConfig.SetConfig("max_score", this._max_score_text._user_data, null);
+        }
+        if (this._dqn_model != null)
+        {
+            this._dqn_model.Save(this._dqn_model_path);
+            this.Restart();
+        }
         return true;
     }
     
@@ -780,6 +956,17 @@ class GCenter
     
     public fun Shutdown()
     {
+        if (this._dqn_model != null)
+        {
+            this._dqn_model.Save(this._dqn_model_path);
+            this._dqn_model = null;
+        }
+
+        if (this._dqn_timer != null)
+        {
+            A_LoopSystem.RemoveTimer(this._dqn_timer);
+            this._dqn_timer = null;
+        }
     }
 }
     
