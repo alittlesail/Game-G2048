@@ -19,6 +19,8 @@ G2048.g_GConfig = nil
 G2048.GCenter = Lua.Class(nil, "G2048.GCenter")
 
 function G2048.GCenter:Ctor()
+	___rawset(self, "_mean_total_score", 0)
+	___rawset(self, "_mean_total_count", 0)
 	___rawset(self, "_loop_group", {})
 end
 
@@ -55,6 +57,8 @@ function G2048.GCenter:Setup()
 		self._dqn_model:Load(self._dqn_model_path)
 		self._dqn_timer = A_LoopSystem:AddTimer(10, Lua.Bind(self.HandleDqnPlay, self), -1, 10)
 	end
+	self._mean_text.visible = self._dqn_model ~= nil
+	self._mean_score_text.visible = self._dqn_model ~= nil
 	self:Restart()
 end
 
@@ -554,6 +558,7 @@ function G2048.GCenter:CalcReward()
 		mean = total / count
 	end
 	score = score + (mean)
+	local rate_1 = 1
 	local i = 1
 	while true do
 		if not(i < 4) then break end
@@ -561,19 +566,21 @@ function G2048.GCenter:CalcReward()
 		while true do
 			if not(j < 4) then break end
 			local item = self._data_map[i][j]
-			local right_item = self._data_map[i][j + 1]
-			if item ~= nil and right_item ~= nil and item._user_data == right_item._user_data then
-				score = score + (item._user_data * (i + j))
-			end
-			local bottom_item = self._data_map[i + 1][j]
-			if item ~= nil and bottom_item ~= nil and item._user_data == bottom_item._user_data then
-				score = score + (item._user_data * (i + j))
+			if item ~= nil then
+				local right_item = self._data_map[i][j + 1]
+				if right_item ~= nil and item._user_data == right_item._user_data then
+					score = score + (item._user_data * (i + j) * rate_1)
+				end
+				local bottom_item = self._data_map[i + 1][j]
+				if bottom_item ~= nil and item._user_data == bottom_item._user_data then
+					score = score + (item._user_data * (i + j) * rate_1)
+				end
 			end
 			j = j+(1)
 		end
 		i = i+(1)
 	end
-	local rate = 1
+	local rate_2 = 1
 	local i = 1
 	while true do
 		if not(i <= 4) then break end
@@ -585,7 +592,7 @@ function G2048.GCenter:CalcReward()
 			if item ~= nil then
 				value = item._user_data
 			end
-			score = score + (value * (i + j) * rate)
+			score = score + (value * (i + j) * rate_2)
 			j = j+(1)
 		end
 		i = i+(1)
@@ -704,8 +711,10 @@ function G2048.GCenter:CheckGameOver()
 			if not(j <= 4) then break end
 			local item = self._data_map[i][j]
 			if item ~= nil and item._user_data == 2048 then
-				ALittle.Log("Victory")
 				self:ShowMainMenu("Victory", false)
+				self._mean_total_score = self._mean_total_score + (self._score_text._user_data)
+				self._mean_total_count = self._mean_total_count + (1)
+				self._mean_score_text.text = self._mean_total_score / self._mean_total_count
 				if self._max_score_text._user_data < self._score_text._user_data then
 					self._max_score_text._user_data = self._score_text._user_data
 					self._max_score_text.text = self._max_score_text._user_data
@@ -750,6 +759,9 @@ function G2048.GCenter:CheckGameOver()
 		end
 		i = i+(1)
 	end
+	self._mean_total_score = self._mean_total_score + (self._score_text._user_data)
+	self._mean_total_count = self._mean_total_count + (1)
+	self._mean_score_text.text = self._mean_total_score / self._mean_total_count
 	self:ShowMainMenu("GameOver", false)
 	if self._max_score_text._user_data < self._score_text._user_data then
 		self._max_score_text._user_data = self._score_text._user_data

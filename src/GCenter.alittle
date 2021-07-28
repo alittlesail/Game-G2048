@@ -43,6 +43,11 @@ class GCenter
     private string _dqn_model_path;
     private int _dqn_timer;
 
+    private ALittle.DisplayObject _mean_text;
+    private ALittle.DisplayObject _mean_score_text;
+    private int _mean_total_score = 0;
+    private int _mean_total_count = 0;
+
     public ctor()
     {
 	    this._loop_group = new Map<ALittle.LoopObject, ALittle.LoopObject>();
@@ -97,6 +102,9 @@ class GCenter
 
             this._dqn_timer = A_LoopSystem.AddTimer(10, bind(this.HandleDqnPlay, this), -1, 10);
         }
+
+        this._mean_text.visible = this._dqn_model != null;
+        this._mean_score_text.visible = this._dqn_model != null;
 
         this.Restart();
     }
@@ -709,22 +717,25 @@ class GCenter
         if (count > 0) mean = total / count;
         score += mean;
 
+        var rate_1 = 1;
         for (var i = 1; i < 4; 1)
         {
             for (var j = 1; j < 4; 1)
             {
                 var item = this._data_map[i][j];
-
-                var right_item = this._data_map[i][j + 1];
-                if (item != null && right_item != null && cast<int>(item._user_data) == cast<int>(right_item._user_data))
-                    score += cast<int>(item._user_data) * (i + j);
-                var bottom_item = this._data_map[i + 1][j];
-                if (item != null && bottom_item != null && cast<int>(item._user_data) == cast<int>(bottom_item._user_data))
-                    score += cast<int>(item._user_data) * (i + j);
+                if (item != null)
+                {
+                    var right_item = this._data_map[i][j + 1];
+                    if (right_item != null && item._user_data == right_item._user_data)
+                        score += cast<int>(item._user_data) * (i + j) * rate_1;
+                    var bottom_item = this._data_map[i + 1][j];
+                    if (bottom_item != null && item._user_data == bottom_item._user_data)
+                        score += cast<int>(item._user_data) * (i + j) * rate_1;
+                }
             }
         }
 
-        var rate = 1;
+        var rate_2 = 1;
 
         for (var i = 1; i <= 4; 1)
         {
@@ -735,7 +746,7 @@ class GCenter
                 if (item != null)
                     value = item._user_data;
 
-                score += value * (i + j) * rate;
+                score += value * (i + j) * rate_2;
             }
         }
 
@@ -867,8 +878,11 @@ class GCenter
                 var item = this._data_map[i][j];
                 if (item != null && item._user_data == 2048)
                 {
-                    ALittle.Log("Victory");
                     this.ShowMainMenu("Victory", false);
+                    this._mean_total_score += cast<int>(this._score_text._user_data);
+                    this._mean_total_count += 1;
+                    this._mean_score_text.text = this._mean_total_score / this._mean_total_count;
+
                     if (cast<int>(this._max_score_text._user_data) < cast<int>(this._score_text._user_data))
                     {
                         this._max_score_text._user_data = this._score_text._user_data;
@@ -923,6 +937,11 @@ class GCenter
                     return false;
             }
         }
+
+
+        this._mean_total_score += cast<int>(this._score_text._user_data);
+        this._mean_total_count += 1;
+        this._mean_score_text.text = this._mean_total_score / this._mean_total_count;
 
         this.ShowMainMenu("GameOver", false);
         if (cast<int>(this._max_score_text._user_data) < cast<int>(this._score_text._user_data))
