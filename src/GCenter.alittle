@@ -688,7 +688,7 @@ class GCenter
             {
                 var item = this._data_map[i][j];
                 if (item == null)
-                    state[index] = 0;
+                    state[index] = -1;
                 else
                     state[index] = item._user_data;
                 index += 1;

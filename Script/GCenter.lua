@@ -526,7 +526,7 @@ function G2048.GCenter:CalcState()
 			if not(j <= 4) then break end
 			local item = self._data_map[i][j]
 			if item == nil then
-				state[index] = 0
+				state[index] = -1
 			else
 				state[index] = item._user_data
 			end
