@@ -88,14 +88,11 @@ class GCenter
         // 创建主界面
         g_Control.CreateControl{ALittle.DisplayObject}("main_scene", this, this._main_layer);
 
-        this._max_score_text._user_data = g_GConfig.GetConfig("max_score", 0);
-        this._max_score_text.text = this._max_score_text._user_data;
-    
         if (deeplearning != null && deeplearning.DeeplearningDQNModel != null)
         {
             var state_num = 16;
             var action_num = 4;
-            this._dqn_model = new deeplearning.DeeplearningDQNModel(state_num, action_num, 100, 2000);
+            this._dqn_model = new deeplearning.DeeplearningDQNModel(state_num, action_num, 100, 20000);
 
             this._dqn_model_path = g_ModuleBasePath.."/Other/g2048_"..state_num.."_"..action_num..".model";
             this._dqn_model.Load(this._dqn_model_path);
@@ -105,7 +102,13 @@ class GCenter
 
         this._mean_text.visible = this._dqn_model != null;
         this._mean_score_text.visible = this._dqn_model != null;
-
+    
+        if (this._dqn_model != null)
+            this._max_score_text._user_data = 0;
+        else
+            this._max_score_text._user_data = g_GConfig.GetConfig("max_score", 0);
+        this._max_score_text.text = this._max_score_text._user_data;
+    
         this.Restart();
     }
     
@@ -173,9 +176,9 @@ class GCenter
         if (list_count == 0) return false;
     
         // 随机格子的编号，2 或者 4
-        var rand1 = ALittle.Math_RandomInt(1, 100);
-        var number = 2;
-        if (rand1 > 50) number = 4;
+        var rand1 = ALittle.Math_RandomInt(1, 10);
+        var number = 4;
+        if (rand1 < 10) number = 2;
     
         // 随机格子的位置
         var rand2 = ALittle.Math_RandomInt(1, list_count);
@@ -665,13 +668,13 @@ class GCenter
             this.CalcDown();
     
         // 检查是否游戏结束
-        if (this.CheckGameOver()) return;
+        if (this.CheckGameWin() != null) return;
     
         if (this._item_moved == false) return;
         this.GenerateItem(this._loop_delay);
     
         // 检查是否游戏结束
-        if (this.CheckGameOver()) return;
+        if (this.CheckGameWin() != null) return;
     }
 
     private fun CalcState() : List<double>
@@ -694,63 +697,121 @@ class GCenter
         return state;
     }
 
-    private fun CalcReward() : double
+    private fun CalcValueMap() : Map<int, Map<int, int>>
     {
-        var score = 0.0;
-
-        // 计算最大的那个数
-        var count = 0;
-        var total = 0;
-        for (var i = 1; i < 4; 1)
-        {
-            for (var j = 1; j < 4; 1)
-            {
-                var item = this._data_map[i][j];
-                if (item != null)
-                {
-                    total += cast<int>(item._user_data);
-                    count += 1;
-                }
-            }
-        }
-        var mean = 0.0;
-        if (count > 0) mean = total / count;
-        score += mean;
-
-        var rate_1 = 1;
-        for (var i = 1; i < 4; 1)
-        {
-            for (var j = 1; j < 4; 1)
-            {
-                var item = this._data_map[i][j];
-                if (item != null)
-                {
-                    var right_item = this._data_map[i][j + 1];
-                    if (right_item != null && item._user_data == right_item._user_data)
-                        score += cast<int>(item._user_data) * (i + j) * rate_1;
-                    var bottom_item = this._data_map[i + 1][j];
-                    if (bottom_item != null && item._user_data == bottom_item._user_data)
-                        score += cast<int>(item._user_data) * (i + j) * rate_1;
-                }
-            }
-        }
-
-        var rate_2 = 1;
+        var value_map = new Map<int, Map<int, int>>();
 
         for (var i = 1; i <= 4; 1)
         {
+            var map = new Map<int, int>();
+            value_map[i] = map;
             for (var j = 1; j <= 4; 1)
             {
-                var value = 0;
+                var item = this._data_map[i][j];
+                if (item == null)
+                    map[j] = 0;
+                else
+                    map[j] = item._user_data;
+            }
+        }
+
+        return value_map;
+    }
+
+    private fun CalcSmooth() : double
+    {
+        var score = 0.0;
+        for (var i = 1; i < 4; 1)
+        {
+            for (var j = 1; j < 4; 1)
+            {
                 var item = this._data_map[i][j];
                 if (item != null)
-                    value = item._user_data;
-
-                score += value * (i + j) * rate_2;
+                {
+                    for (var col = j + 1; col <= 4; 1)
+                    {
+                        var right_item = this._data_map[i][col];
+                        if (right_item != null)
+                        {
+                            score -= ALittle.Math_Abs(cast<int>(item._user_data) - cast<int>(right_item._user_data)) * (i + j) * (i + j);
+                            break;
+                        }
+                    }
+                    for (var row = i + 1; row <= 4; 1)
+                    {
+                        var bottom_item = this._data_map[row][j];
+                        if (bottom_item != null)
+                        {
+                            score -= ALittle.Math_Abs(cast<int>(item._user_data) - cast<int>(bottom_item._user_data)) * (i + j) * (i + j);
+                            break;
+                        }
+                    }
+                }
             }
         }
 
         return score;
+    }
+
+    private fun CalcMonotonous(Map<int, Map<int, int>> value_map) : double
+    {
+        var score = 0.0;
+        for (var i = 1; i <= 4; 1)
+        {
+            for (var j = 1; j <= 4; 1)
+            {
+                var value = value_map[i][j];
+                score += value * (i + j);
+            }
+        }
+
+        return score;
+    }
+
+    private fun CalcEmpty() : double
+    {
+        var score = 0.0;
+        for (var i = 1; i <= 4; 1)
+        {
+            for (var j = 1; j <= 4; 1)
+            {
+                var item = this._data_map[i][j];
+                if (item == null || item._user_data == 0)
+                    score += ((5 - i) + (5 - j)) * ((5 - i) + (5 - j));
+            }
+        }
+
+        return score;
+    }
+
+    private fun CalcReward(Map<int, Map<int, int>> old_value_map, Map<int, Map<int, int>> new_value_map
+                          , bool die
+                          , int old_score, int new_score) : double
+    {
+        // 判断死局
+        if (die) return -20;
+
+        // 判断是否发生变化
+        var changed = false;
+        for (var i = 1; i <= 4; 1)
+        {
+            for (var j = 1; j <= 4; 1)
+            {
+                if (old_value_map[i][j] != new_value_map[i][j])
+                {
+                    changed = true;
+                    break;
+                }
+            }
+        }
+
+        // 没有发生变化
+        if (!changed) return -5;
+
+        if (new_score > old_score) return new_score - old_score;
+
+        // 存活
+        return 1;
     }
     
     private fun HandleDragBegin(ALittle.UIButtonDragEvent event)
@@ -769,13 +830,12 @@ class GCenter
 
     private fun HandleDqnPlay()
     {
-        var action = 0;
         var state = this.CalcState();
-
-        if (ALittle.Math_RandomInt(1, 1000) < 1000)
-            action = this._dqn_model.ChooseAction(state);
+        var action = 0;
+        if (ALittle.Math_RandomInt(1, 10) < 10)
+        	action = this._dqn_model.ChooseAction(state);
         else
-            action = ALittle.Math_RandomInt(0, 3);
+        	action = ALittle.Math_RandomInt(0, 3);
 
         // 清除所有动画
         this.ClearAnti();
@@ -783,51 +843,37 @@ class GCenter
         this._item_moved = false;
         this._loop_delay = 0;
 
+        var old_value_map = this.CalcValueMap();
+        var old_score:int = this._score_text._user_data;
+
         if (action == 0)
-        	this.CalcRight();
-        elseif (action == 1)
         	this.CalcDown();
+        elseif (action == 1)
+        	this.CalcRight();
         elseif (action == 2)
             this.CalcLeft();
         elseif (action == 3)
         	this.CalcUp();
 
-        if (this._item_moved == false)
-        {
-            for (var i = 0; i <= 3; 1)
-            {
-                action = i;
+        var new_value_map = this.CalcValueMap();
 
-                if (action == 0)
-                    this.CalcRight();
-                elseif (action == 1)
-                    this.CalcDown();
-                elseif (action == 2)
-                    this.CalcLeft();
-                elseif (action == 3)
-                    this.CalcUp();
+        var win = this.CheckGameWin();
+        var new_score:int = this._score_text._user_data;
 
-                if (this._item_moved) break;
-            }
-        }
-
-        if (this._item_moved)
-        {
-            var reward = this.CalcReward();
-            var next_state = this.CalcState();
-            this._dqn_model.SaveTransition(state, action, reward, next_state);
-            for (var i = 1; i <= 32; 1)
-                this._dqn_model.Learn();
-        }
+        var reward = this.CalcReward(old_value_map, new_value_map, win == false, old_score, new_score);
+        var next_state = this.CalcState();
+        this._dqn_model.SaveTransition(state, action, reward, next_state);
+        for (var i = 1; i <= 32; 1)
+            this._dqn_model.Learn();
     
         // 检查是否游戏结束
-        if (this.CheckGameOver()) return;
+        if (this.CheckGameWin() != null) return;
     
         if (this._item_moved == false) return;
         this.GenerateItem(this._loop_delay);
     
         // 检查是否游戏结束
-        if (this.CheckGameOver()) return;
+        if (this.CheckGameWin() != null) return;
     }
     
     private fun HandleDragEnd(ALittle.UIButtonDragEvent event)
@@ -860,16 +906,19 @@ class GCenter
         }
     
         // 检查是否游戏结束
-        if (this.CheckGameOver()) return;
+        if (this.CheckGameWin() != null) return;
     
         if (this._item_moved == false) return;
         this.GenerateItem(this._loop_delay);
         
         // 检查是否游戏结束
-        if (this.CheckGameOver()) return;
+        if (this.CheckGameWin() != null) return;
     }
     
-    public fun CheckGameOver() : bool
+    // true 表示赢了
+    // false 表示失败了
+    // null 表示游戏还未结束
+    public fun CheckGameWin() : bool
     {
         for (var i = 1; i <= 4; 1)
         {
@@ -910,31 +959,31 @@ class GCenter
             {
                 var item = this._data_map[i][j];
                 if (item == null)
-                    return false;
+                    return null;
                     
                 // 检查左边
                 if (j > 1
                 && (this._data_map[i][j-1] == null
                     || this._data_map[i][j-1]._user_data == item._user_data))
-                    return false;
+                    return null;
                     
                 // 检查右边
                 if (j < 4
                 && (this._data_map[i][j+1] == null
                     || this._data_map[i][j+1]._user_data == item._user_data))
-                    return false;
+                    return null;
 
                 // 检查上边
                 if (i > 1
                 && (this._data_map[i-1][j] == null
                     || this._data_map[i-1][j]._user_data == item._user_data))
-                    return false;
+                    return null;
                     
                 // 检查下边
                 if (i < 4
                 && (this._data_map[i+1][j] == null
                     || this._data_map[i+1][j]._user_data == item._user_data))
-                    return false;
+                    return null;
             }
         }
 
@@ -955,7 +1004,7 @@ class GCenter
             this._dqn_model.Save(this._dqn_model_path);
             this.Restart();
         }
-        return true;
+        return false;
     }
     
     public fun HandleRestartClick(ALittle.UIEvent event)
