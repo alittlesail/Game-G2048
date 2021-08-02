@@ -39,7 +39,7 @@ class GCenter
     private double _drag_total_y;
 
     [Language(Lua)]
-    private deeplearning.DeeplearningDqnDnnModel _dqn_model;
+    private deeplearning.DeeplearningDqnCnnModel _dqn_model;
     private string _dqn_model_path;
     private int _dqn_timer;
 
@@ -88,16 +88,16 @@ class GCenter
         // 创建主界面
         g_Control.CreateControl{ALittle.DisplayObject}("main_scene", this, this._main_layer);
 
-        if (deeplearning != null && deeplearning.DeeplearningDqnDnnModel != null)
+        if (deeplearning != null && deeplearning.DeeplearningDqnCnnModel != null)
         {
-            var state_num = 16;
+            var state_num = 4;
             var action_num = 4;
-            this._dqn_model = new deeplearning.DeeplearningDqnDnnModel(state_num, action_num, 100, 20000);
+            this._dqn_model = new deeplearning.DeeplearningDqnCnnModel(state_num, action_num, 20000);
 
             this._dqn_model_path = g_ModuleBasePath.."/Other/g2048_"..state_num.."_"..action_num..".model";
             this._dqn_model.Load(this._dqn_model_path);
 
-            this._dqn_timer = A_LoopSystem.AddTimer(10, bind(this.HandleDqnPlay, this), -1, 10);
+            this._dqn_timer = A_LoopSystem.AddTimer(10, bind(this.HandleDqnPlay, this), -1, 100);
         }
 
         this._mean_text.visible = this._dqn_model != null;
@@ -690,7 +690,7 @@ class GCenter
                 var value = 0;
                 if (item != null)
                 	value = item._user_data;
-                state[index] = (lua.math.log(value + 1) / lua.math.log(2)) / 15;
+                state[index] = (lua.math.log(value + 1) / lua.math.log(2)) / 16;
                 index += 1;
             }
         }
@@ -832,7 +832,7 @@ class GCenter
     {
         var state = this.CalcState();
         var action = 0;
-        if (ALittle.Math_RandomInt(1, 10) < 10)
+        if (ALittle.Math_RandomInt(1, 100) < 100)
         	action = this._dqn_model.ChooseAction(state);
         else
         	action = ALittle.Math_RandomInt(0, 3);
@@ -863,8 +863,8 @@ class GCenter
         var reward = this.CalcReward(old_value_map, new_value_map, win == false, old_score, new_score);
         var next_state = this.CalcState();
         this._dqn_model.SaveTransition(state, action, reward, next_state);
-        for (var i = 1; i <= 32; 1)
-            this._dqn_model.Learn();
+        for (var i = 1; i <= 10; 1)
+            this._dqn_model.Learn();            
     
         // 检查是否游戏结束
         if (this.CheckGameWin() != null) return;

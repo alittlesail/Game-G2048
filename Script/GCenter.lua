@@ -47,13 +47,13 @@ function G2048.GCenter:Setup()
 	G2048.g_LayerGroup:AddChild(self._dialog_layer, nil)
 	G2048.g_Control:PrepareTexture({"item_2", "item_4", "item_8", "item_16", "item_32", "item_64", "item_128", "item_256", "item_512", "item_1024", "item_2048"}, nil)
 	G2048.g_Control:CreateControl("main_scene", self, self._main_layer)
-	if deeplearning ~= nil and deeplearning.DeeplearningDqnDnnModel ~= nil then
-		local state_num = 16
+	if deeplearning ~= nil and deeplearning.DeeplearningDqnCnnModel ~= nil then
+		local state_num = 4
 		local action_num = 4
-		self._dqn_model = deeplearning.DeeplearningDqnDnnModel(state_num, action_num, 100, 20000)
+		self._dqn_model = deeplearning.DeeplearningDqnCnnModel(state_num, action_num, 20000)
 		self._dqn_model_path = G2048.g_ModuleBasePath .. "/Other/g2048_" .. state_num .. "_" .. action_num .. ".model"
 		self._dqn_model:Load(self._dqn_model_path)
-		self._dqn_timer = A_LoopSystem:AddTimer(10, Lua.Bind(self.HandleDqnPlay, self), -1, 10)
+		self._dqn_timer = A_LoopSystem:AddTimer(10, Lua.Bind(self.HandleDqnPlay, self), -1, 100)
 	end
 	self._mean_text.visible = self._dqn_model ~= nil
 	self._mean_score_text.visible = self._dqn_model ~= nil
@@ -529,7 +529,7 @@ function G2048.GCenter:CalcState()
 			if item ~= nil then
 				value = item._user_data
 			end
-			state[index] = (math.log(value + 1) / math.log(2)) / 15
+			state[index] = (math.log(value + 1) / math.log(2)) / 16
 			index = index + (1)
 			j = j+(1)
 		end
@@ -676,7 +676,7 @@ end
 function G2048.GCenter:HandleDqnPlay()
 	local state = self:CalcState()
 	local action = 0
-	if ALittle.Math_RandomInt(1, 10) < 10 then
+	if ALittle.Math_RandomInt(1, 100) < 100 then
 		action = self._dqn_model:ChooseAction(state)
 	else
 		action = ALittle.Math_RandomInt(0, 3)
@@ -703,7 +703,7 @@ function G2048.GCenter:HandleDqnPlay()
 	self._dqn_model:SaveTransition(state, action, reward, next_state)
 	local i = 1
 	while true do
-		if not(i <= 32) then break end
+		if not(i <= 10) then break end
 		self._dqn_model:Learn()
 		i = i+(1)
 	end
