@@ -47,10 +47,10 @@ function G2048.GCenter:Setup()
 	G2048.g_LayerGroup:AddChild(self._dialog_layer, nil)
 	G2048.g_Control:PrepareTexture({"item_2", "item_4", "item_8", "item_16", "item_32", "item_64", "item_128", "item_256", "item_512", "item_1024", "item_2048"}, nil)
 	G2048.g_Control:CreateControl("main_scene", self, self._main_layer)
-	if deeplearning ~= nil and deeplearning.DeeplearningDQNModel ~= nil then
+	if deeplearning ~= nil and deeplearning.DeeplearningDqnDnnModel ~= nil then
 		local state_num = 16
 		local action_num = 4
-		self._dqn_model = deeplearning.DeeplearningDQNModel(state_num, action_num, 100, 20000)
+		self._dqn_model = deeplearning.DeeplearningDqnDnnModel(state_num, action_num, 100, 20000)
 		self._dqn_model_path = G2048.g_ModuleBasePath .. "/Other/g2048_" .. state_num .. "_" .. action_num .. ".model"
 		self._dqn_model:Load(self._dqn_model_path)
 		self._dqn_timer = A_LoopSystem:AddTimer(10, Lua.Bind(self.HandleDqnPlay, self), -1, 10)
@@ -525,11 +525,11 @@ function G2048.GCenter:CalcState()
 		while true do
 			if not(j <= 4) then break end
 			local item = self._data_map[i][j]
-			if item == nil then
-				state[index] = -1
-			else
-				state[index] = item._user_data
+			local value = 0
+			if item ~= nil then
+				value = item._user_data
 			end
+			state[index] = (math.log(value + 1) / math.log(2)) / 15
 			index = index + (1)
 			j = j+(1)
 		end
