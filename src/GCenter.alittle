@@ -92,12 +92,12 @@ class GCenter
         {
             var state_num = 4;
             var action_num = 4;
-            this._dqn_model = new deeplearning.DeeplearningDqnCnnModel(state_num, action_num, 20000);
+            this._dqn_model = new deeplearning.DeeplearningDqnCnnModel(state_num, action_num, 2000);
 
             this._dqn_model_path = g_ModuleBasePath.."/Other/g2048_"..state_num.."_"..action_num..".model";
             this._dqn_model.Load(this._dqn_model_path);
 
-            this._dqn_timer = A_LoopSystem.AddTimer(10, bind(this.HandleDqnPlay, this), -1, 100);
+            this._dqn_timer = A_LoopSystem.AddTimer(10, bind(this.HandleDqnPlay, this), -1, 10);
         }
 
         this._mean_text.visible = this._dqn_model != null;
@@ -808,7 +808,23 @@ class GCenter
         // 没有发生变化
         if (!changed) return -5;
 
-        if (new_score > old_score) return new_score - old_score;
+        // 获取旧的大小，和新的最大大小
+        var old_max_value = 0;
+        var new_max_value = 0;
+        for (var i = 1; i <= 4; 1)
+        {
+            for (var j = 1; j <= 4; 1)
+            {
+                if (old_value_map[i][j] > old_max_value)
+                	old_max_value = old_value_map[i][j];
+
+                if (new_value_map[i][j] > new_max_value)
+                	new_max_value = new_value_map[i][j];
+            }
+        }
+
+        if (new_max_value > old_max_value) return 20;
+        if (new_score > old_score) return 10;
 
         // 存活
         return 1;
@@ -832,7 +848,7 @@ class GCenter
     {
         var state = this.CalcState();
         var action = 0;
-        if (ALittle.Math_RandomInt(1, 100) < 100)
+        if (ALittle.Math_RandomInt(1, 1000) < 1000)
         	action = this._dqn_model.ChooseAction(state);
         else
         	action = ALittle.Math_RandomInt(0, 3);
@@ -855,6 +871,34 @@ class GCenter
         elseif (action == 3)
         	this.CalcUp();
 
+        if (this._item_moved == null)
+        {
+            var new_value_map = this.CalcValueMap();
+
+            var win = this.CheckGameWin();
+            var new_score:int = this._score_text._user_data;
+
+            var reward = this.CalcReward(old_value_map, new_value_map, win == false, old_score, new_score);
+            var next_state = this.CalcState();
+            this._dqn_model.SaveTransition(state, action, reward, next_state);
+
+            for (var i = 0; i <= 3; 1)
+            {
+                action = i;
+
+                if (action == 0)
+                    this.CalcDown();
+                elseif (action == 1)
+                    this.CalcRight();
+                elseif (action == 2)
+                    this.CalcLeft();
+                elseif (action == 3)
+                    this.CalcUp();
+
+                if (this._item_moved) break;
+            }
+        }
+
         var new_value_map = this.CalcValueMap();
 
         var win = this.CheckGameWin();
@@ -863,8 +907,8 @@ class GCenter
         var reward = this.CalcReward(old_value_map, new_value_map, win == false, old_score, new_score);
         var next_state = this.CalcState();
         this._dqn_model.SaveTransition(state, action, reward, next_state);
-        for (var i = 1; i <= 10; 1)
-            this._dqn_model.Learn();            
+        for (var i = 1; i <= 1; 1)
+            this._dqn_model.Learn();
     
         // 检查是否游戏结束
         if (this.CheckGameWin() != null) return;
