@@ -89,6 +89,9 @@ public class DeeplearningDqnDnnModel : DeeplearningModel
 
     // 开始学习
     public fun Learn() : double {}
+
+    // 学习最后一个经验
+    public fun LearnLastTransition() : double {}
 }
 
 // DQN CNN
@@ -107,4 +110,7 @@ public class DeeplearningDqnCnnModel : DeeplearningModel
 
     // 开始学习
     public fun Learn() : double {}
+
+    // 学习最后一个经验
+    public fun LearnLastTransition() : double {}
 }

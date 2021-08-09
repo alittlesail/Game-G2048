@@ -50,7 +50,7 @@ function G2048.GCenter:Setup()
 	if deeplearning ~= nil and deeplearning.DeeplearningDqnCnnModel ~= nil then
 		local state_num = 4
 		local action_num = 4
-		self._dqn_model = deeplearning.DeeplearningDqnCnnModel(state_num, action_num, 2000)
+		self._dqn_model = deeplearning.DeeplearningDqnCnnModel(state_num, action_num, 200)
 		self._dqn_model_path = G2048.g_ModuleBasePath .. "/Other/g2048_" .. state_num .. "_" .. action_num .. ".model"
 		self._dqn_model:Load(self._dqn_model_path)
 		self._dqn_timer = A_LoopSystem:AddTimer(10, Lua.Bind(self.HandleDqnPlay, self), -1, 10)
@@ -150,7 +150,6 @@ function G2048.GCenter:CalcLeft()
 			end
 			j = j+(1)
 		end
-		local new_list = {}
 		if list_count == 1 then
 			self:TransItem(list[1], i, 1)
 		elseif list_count == 2 then
@@ -214,7 +213,6 @@ function G2048.GCenter:CalcRight()
 			end
 			j = j+(-1)
 		end
-		local new_list = {}
 		if list_count == 1 then
 			self:TransItem(list[1], i, 5 - 1)
 		elseif list_count == 2 then
@@ -278,7 +276,6 @@ function G2048.GCenter:CalcUp()
 			end
 			i = i+(1)
 		end
-		local new_list = {}
 		if list_count == 1 then
 			self:TransItem(list[1], 1, j)
 		elseif list_count == 2 then
@@ -342,7 +339,6 @@ function G2048.GCenter:CalcDown()
 			end
 			i = i+(-1)
 		end
-		local new_list = {}
 		if list_count == 1 then
 			self:TransItem(list[1], 5 - 1, j)
 		elseif list_count == 2 then
@@ -616,6 +612,27 @@ function G2048.GCenter:CalcMonotonous(value_map)
 	return score
 end
 
+function G2048.GCenter:CalcMean(value_map)
+	local score = 0.0
+	local count = 0
+	local i = 1
+	while true do
+		if not(i <= 4) then break end
+		local j = 1
+		while true do
+			if not(j <= 4) then break end
+			local value = value_map[i][j]
+			score = score + (value)
+			if value > 0 then
+				count = count + (1)
+			end
+			j = j+(1)
+		end
+		i = i+(1)
+	end
+	return (math.log(score + 1) / math.log(2)) / count
+end
+
 function G2048.GCenter:CalcEmpty()
 	local score = 0.0
 	local i = 1
@@ -657,31 +674,7 @@ function G2048.GCenter:CalcReward(old_value_map, new_value_map, die, old_score, 
 	if not changed then
 		return -5
 	end
-	local old_max_value = 0
-	local new_max_value = 0
-	local i = 1
-	while true do
-		if not(i <= 4) then break end
-		local j = 1
-		while true do
-			if not(j <= 4) then break end
-			if old_value_map[i][j] > old_max_value then
-				old_max_value = old_value_map[i][j]
-			end
-			if new_value_map[i][j] > new_max_value then
-				new_max_value = new_value_map[i][j]
-			end
-			j = j+(1)
-		end
-		i = i+(1)
-	end
-	if new_max_value > old_max_value then
-		return 20
-	end
-	if new_score > old_score then
-		return 10
-	end
-	return 1
+	return self:CalcMean(new_value_map) - self:CalcMean(old_value_map)
 end
 
 function G2048.GCenter:HandleDragBegin(event)
@@ -751,7 +744,7 @@ function G2048.GCenter:HandleDqnPlay()
 	local i = 1
 	while true do
 		if not(i <= 1) then break end
-		self._dqn_model:Learn()
+		self._dqn_model:LearnLastTransition()
 		i = i+(1)
 	end
 	if self:CheckGameWin() ~= nil then

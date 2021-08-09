@@ -92,7 +92,7 @@ class GCenter
         {
             var state_num = 4;
             var action_num = 4;
-            this._dqn_model = new deeplearning.DeeplearningDqnCnnModel(state_num, action_num, 2000);
+            this._dqn_model = new deeplearning.DeeplearningDqnCnnModel(state_num, action_num, 200);
 
             this._dqn_model_path = g_ModuleBasePath.."/Other/g2048_"..state_num.."_"..action_num..".model";
             this._dqn_model.Load(this._dqn_model_path);
@@ -209,7 +209,6 @@ class GCenter
                 }
             }
             // 计算合并
-            var new_list = new List<ItemInfo>();
             if (list_count == 1)
             {
                 this.TransItem(list[1], i, 1);
@@ -296,7 +295,6 @@ class GCenter
                 }
             }
             // 计算合并
-            var new_list = new List<ItemInfo>();
             if (list_count == 1)
             {
                 this.TransItem(list[1], i, 5-1);
@@ -383,7 +381,6 @@ class GCenter
                 }
             }
             // 计算合并
-            var new_list = new ItemInfo();
             if (list_count == 1)
             {
                 this.TransItem(list[1], 1, j);
@@ -470,7 +467,6 @@ class GCenter
                 }
             }
             // 计算合并
-            var new_list = new List<ItemInfo>();
             if (list_count == 1)
             {
                 this.TransItem(list[1], 5-1, j);
@@ -768,6 +764,23 @@ class GCenter
         return score;
     }
 
+    private fun CalcMean(Map<int, Map<int, int>> value_map) : double
+    {
+        var score = 0.0;
+        var count = 0;
+        for (var i = 1; i <= 4; 1)
+        {
+            for (var j = 1; j <= 4; 1)
+            {
+                var value = value_map[i][j];
+                score += value;
+                if (value > 0) count += 1;
+            }
+        }
+
+        return (lua.math.log(score + 1) / lua.math.log(2)) / count;
+    }
+
     private fun CalcEmpty() : double
     {
         var score = 0.0;
@@ -808,8 +821,11 @@ class GCenter
         // 没有发生变化
         if (!changed) return -5;
 
+        // 平均大小
+        return this.CalcMean(new_value_map) - this.CalcMean(old_value_map);
+
         // 获取旧的大小，和新的最大大小
-        var old_max_value = 0;
+        /*var old_max_value = 0;
         var new_max_value = 0;
         for (var i = 1; i <= 4; 1)
         {
@@ -827,7 +843,7 @@ class GCenter
         if (new_score > old_score) return 10;
 
         // 存活
-        return 1;
+        return 1;*/
     }
     
     private fun HandleDragBegin(ALittle.UIButtonDragEvent event)
@@ -908,7 +924,7 @@ class GCenter
         var next_state = this.CalcState();
         this._dqn_model.SaveTransition(state, action, reward, next_state);
         for (var i = 1; i <= 1; 1)
-            this._dqn_model.Learn();
+            this._dqn_model.LearnLastTransition();
     
         // 检查是否游戏结束
         if (this.CheckGameWin() != null) return;
