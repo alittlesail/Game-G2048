@@ -47,10 +47,10 @@ function G2048.GCenter:Setup()
 	G2048.g_LayerGroup:AddChild(self._dialog_layer, nil)
 	G2048.g_Control:PrepareTexture({"item_2", "item_4", "item_8", "item_16", "item_32", "item_64", "item_128", "item_256", "item_512", "item_1024", "item_2048"}, nil)
 	G2048.g_Control:CreateControl("main_scene", self, self._main_layer)
-	if deeplearning ~= nil and deeplearning.DeeplearningDqnCnnModel ~= nil then
-		local state_num = 4
+	if deeplearning ~= nil and deeplearning.DeeplearningDqnDnnModel ~= nil then
+		local state_num = 16
 		local action_num = 4
-		self._dqn_model = deeplearning.DeeplearningDqnCnnModel(state_num, action_num, 200)
+		self._dqn_model = deeplearning.DeeplearningDqnDnnModel(state_num, action_num, 100, 200)
 		self._dqn_model_path = G2048.g_ModuleBasePath .. "/Other/g2048_" .. state_num .. "_" .. action_num .. ".model"
 		self._dqn_model:Load(self._dqn_model_path)
 		self._dqn_timer = A_LoopSystem:AddTimer(10, Lua.Bind(self.HandleDqnPlay, self), -1, 10)
@@ -557,7 +557,7 @@ function G2048.GCenter:CalcValueMap()
 	return value_map
 end
 
-function G2048.GCenter:CalcSmooth()
+function G2048.GCenter:CalcSmooth(value_map)
 	local score = 0.0
 	local i = 1
 	while true do
@@ -565,14 +565,16 @@ function G2048.GCenter:CalcSmooth()
 		local j = 1
 		while true do
 			if not(j < 4) then break end
-			local item = self._data_map[i][j]
-			if item ~= nil then
+			local item = value_map[i][j]
+			if item ~= 0 then
 				local col = j + 1
 				while true do
 					if not(col <= 4) then break end
-					local right_item = self._data_map[i][col]
-					if right_item ~= nil then
-						score = score - (ALittle.Math_Abs(item._user_data - right_item._user_data) * (i + j) * (i + j))
+					local right_item = value_map[i][col]
+					if right_item ~= 0 then
+						if item == right_item then
+							score = score + (item)
+						end
 						break
 					end
 					col = col+(1)
@@ -580,9 +582,11 @@ function G2048.GCenter:CalcSmooth()
 				local row = i + 1
 				while true do
 					if not(row <= 4) then break end
-					local bottom_item = self._data_map[row][j]
-					if bottom_item ~= nil then
-						score = score - (ALittle.Math_Abs(item._user_data - bottom_item._user_data) * (i + j) * (i + j))
+					local bottom_item = value_map[row][j]
+					if bottom_item ~= 0 then
+						if item == bottom_item then
+							score = score + (item)
+						end
 						break
 					end
 					row = row+(1)
@@ -653,9 +657,6 @@ function G2048.GCenter:CalcEmpty()
 end
 
 function G2048.GCenter:CalcReward(old_value_map, new_value_map, die, old_score, new_score)
-	if die then
-		return -20
-	end
 	local changed = false
 	local i = 1
 	while true do
@@ -671,10 +672,18 @@ function G2048.GCenter:CalcReward(old_value_map, new_value_map, die, old_score, 
 		end
 		i = i+(1)
 	end
-	if not changed then
-		return -5
+	local score = 1
+	if not die then
+		if changed then
+			score = score + (1)
+		end
+		score = score + (self:CalcSmooth(new_value_map))
+		score = score + (new_score)
 	end
-	return self:CalcMean(new_value_map) - self:CalcMean(old_value_map)
+	if score <= 0 then
+		score = 1
+	end
+	return (math.log(score) / math.log(2)) / 16
 end
 
 function G2048.GCenter:HandleDragBegin(event)
@@ -709,7 +718,7 @@ function G2048.GCenter:HandleDqnPlay()
 	elseif action == 3 then
 		self:CalcUp()
 	end
-	if self._item_moved == nil then
+	if self._item_moved == false then
 		local new_value_map = self:CalcValueMap()
 		local win = self:CheckGameWin()
 		local new_score = self._score_text._user_data
@@ -744,7 +753,7 @@ function G2048.GCenter:HandleDqnPlay()
 	local i = 1
 	while true do
 		if not(i <= 1) then break end
-		self._dqn_model:LearnLastTransition()
+		self._dqn_model:LearnLastTransition(50)
 		i = i+(1)
 	end
 	if self:CheckGameWin() ~= nil then

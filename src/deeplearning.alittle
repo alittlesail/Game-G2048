@@ -91,26 +91,5 @@ public class DeeplearningDqnDnnModel : DeeplearningModel
     public fun Learn() : double {}
 
     // 学习最后一个经验
-    public fun LearnLastTransition() : double {}
-}
-
-// DQN CNN
-public class DeeplearningDqnCnnModel : DeeplearningModel
-{
-    // input_len 状态个数
-    // action_count 操作个数
-    public ctor(int input_len, int action_count, int memory_capaticy) {}
-
-    // state 是当前的状态向量
-    // 返回一个action
-    public fun ChooseAction(List<double> state) : int {}
-
-    // 保存经验
-    public fun SaveTransition(List<double> state, int action, double reward, List<double> next_state) {}
-
-    // 开始学习
-    public fun Learn() : double {}
-
-    // 学习最后一个经验
-    public fun LearnLastTransition() : double {}
+    public fun LearnLastTransition(int count) : double {}
 }

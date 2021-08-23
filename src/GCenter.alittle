@@ -39,7 +39,7 @@ class GCenter
     private double _drag_total_y;
 
     [Language(Lua)]
-    private deeplearning.DeeplearningDqnCnnModel _dqn_model;
+    private deeplearning.DeeplearningDqnDnnModel _dqn_model;
     private string _dqn_model_path;
     private int _dqn_timer;
 
@@ -88,11 +88,11 @@ class GCenter
         // 创建主界面
         g_Control.CreateControl{ALittle.DisplayObject}("main_scene", this, this._main_layer);
 
-        if (deeplearning != null && deeplearning.DeeplearningDqnCnnModel != null)
+        if (deeplearning != null && deeplearning.DeeplearningDqnDnnModel != null)
         {
-            var state_num = 4;
+            var state_num = 16;
             var action_num = 4;
-            this._dqn_model = new deeplearning.DeeplearningDqnCnnModel(state_num, action_num, 200);
+            this._dqn_model = new deeplearning.DeeplearningDqnDnnModel(state_num, action_num, 100, 200);
 
             this._dqn_model_path = g_ModuleBasePath.."/Other/g2048_"..state_num.."_"..action_num..".model";
             this._dqn_model.Load(this._dqn_model_path);
@@ -714,31 +714,33 @@ class GCenter
         return value_map;
     }
 
-    private fun CalcSmooth() : double
+    private fun CalcSmooth(Map<int, Map<int, int>> value_map) : double
     {
         var score = 0.0;
         for (var i = 1; i < 4; 1)
         {
             for (var j = 1; j < 4; 1)
             {
-                var item = this._data_map[i][j];
-                if (item != null)
+                var item = value_map[i][j];
+                if (item != 0)
                 {
                     for (var col = j + 1; col <= 4; 1)
                     {
-                        var right_item = this._data_map[i][col];
-                        if (right_item != null)
+                        var right_item = value_map[i][col];
+                        if (right_item != 0)
                         {
-                            score -= ALittle.Math_Abs(cast<int>(item._user_data) - cast<int>(right_item._user_data)) * (i + j) * (i + j);
+                            if (item == right_item)
+                            	score += item;
                             break;
                         }
                     }
                     for (var row = i + 1; row <= 4; 1)
                     {
-                        var bottom_item = this._data_map[row][j];
-                        if (bottom_item != null)
+                        var bottom_item = value_map[row][j];
+                        if (bottom_item != 0)
                         {
-                            score -= ALittle.Math_Abs(cast<int>(item._user_data) - cast<int>(bottom_item._user_data)) * (i + j) * (i + j);
+                            if (item == bottom_item)
+                            	score += item;
                             break;
                         }
                     }
@@ -801,9 +803,6 @@ class GCenter
                           , bool die
                           , int old_score, int new_score) : double
     {
-        // 判断死局
-        if (die) return -20;
-
         // 判断是否发生变化
         var changed = false;
         for (var i = 1; i <= 4; 1)
@@ -818,32 +817,19 @@ class GCenter
             }
         }
 
-        // 没有发生变化
-        if (!changed) return -5;
-
-        // 平均大小
-        return this.CalcMean(new_value_map) - this.CalcMean(old_value_map);
-
-        // 获取旧的大小，和新的最大大小
-        /*var old_max_value = 0;
-        var new_max_value = 0;
-        for (var i = 1; i <= 4; 1)
+        var score = 1;
+        if (!die)
         {
-            for (var j = 1; j <= 4; 1)
-            {
-                if (old_value_map[i][j] > old_max_value)
-                	old_max_value = old_value_map[i][j];
+            if (changed) score += 1;
 
-                if (new_value_map[i][j] > new_max_value)
-                	new_max_value = new_value_map[i][j];
-            }
+            score += this.CalcSmooth(new_value_map);
+
+            score += new_score;
         }
 
-        if (new_max_value > old_max_value) return 20;
-        if (new_score > old_score) return 10;
+        if (score <= 0) score = 1;
 
-        // 存活
-        return 1;*/
+        return (lua.math.log(score) / lua.math.log(2)) / 16;
     }
     
     private fun HandleDragBegin(ALittle.UIButtonDragEvent event)
@@ -887,7 +873,7 @@ class GCenter
         elseif (action == 3)
         	this.CalcUp();
 
-        if (this._item_moved == null)
+        if (this._item_moved == false)
         {
             var new_value_map = this.CalcValueMap();
 
@@ -924,7 +910,7 @@ class GCenter
         var next_state = this.CalcState();
         this._dqn_model.SaveTransition(state, action, reward, next_state);
         for (var i = 1; i <= 1; 1)
-            this._dqn_model.LearnLastTransition();
+            this._dqn_model.LearnLastTransition(50);
     
         // 检查是否游戏结束
         if (this.CheckGameWin() != null) return;
