@@ -39,7 +39,7 @@ class GCenter
     private double _drag_total_y;
 
     [Language(Lua)]
-    private ADeeplearning.ARobotDuelingDqnDnnModel _dqn_model;
+    private ADeeplearning.ARobotDqnDnnModel _dqn_model;
     private int _dqn_timer;
 
     private ALittle.DisplayObject _mean_text;
@@ -87,11 +87,11 @@ class GCenter
         // 创建主界面
         g_Control.CreateControl{ALittle.DisplayObject}("main_scene", this, this._main_layer);
 
-        if (ADeeplearning != null && ADeeplearning.ARobotDuelingDqnDnnModel != null)
+        if (ADeeplearning != null && ADeeplearning.ARobotDqnDnnModel != null)
         {
             var state_num = 16;
             var action_num = 4;
-            this._dqn_model = new ADeeplearning.ARobotDuelingDqnDnnModel(state_num, action_num, 100, 200);
+            this._dqn_model = new ADeeplearning.ARobotDqnDnnModel(state_num, action_num, 100, 200, ADeeplearning.ARobotDqnTypes.DUELING);
 
             this._dqn_model.Load(g_ModuleBasePath.."/Other/g2048_"..state_num.."_"..action_num..".model");
 
@@ -820,9 +820,9 @@ class GCenter
         {
             if (changed) score += 1;
 
-            score += this.CalcSmooth(new_value_map);
+            // score += this.CalcSmooth(new_value_map);
 
-            score += new_score;
+            score += new_score - old_score;
         }
 
         if (score <= 0) score = 1;

@@ -47,10 +47,10 @@ function G2048.GCenter:Setup()
 	G2048.g_LayerGroup:AddChild(self._dialog_layer, nil)
 	G2048.g_Control:PrepareTexture({"item_2", "item_4", "item_8", "item_16", "item_32", "item_64", "item_128", "item_256", "item_512", "item_1024", "item_2048"}, nil)
 	G2048.g_Control:CreateControl("main_scene", self, self._main_layer)
-	if ADeeplearning ~= nil and ADeeplearning.ARobotDuelingDqnDnnModel ~= nil then
+	if ADeeplearning ~= nil and ADeeplearning.ARobotDqnDnnModel ~= nil then
 		local state_num = 16
 		local action_num = 4
-		self._dqn_model = ADeeplearning.ARobotDuelingDqnDnnModel(state_num, action_num, 100, 200)
+		self._dqn_model = ADeeplearning.ARobotDqnDnnModel(state_num, action_num, 100, 200, 2)
 		self._dqn_model:Load(G2048.g_ModuleBasePath .. "/Other/g2048_" .. state_num .. "_" .. action_num .. ".model")
 		self._dqn_timer = A_LoopSystem:AddTimer(10, Lua.Bind(self.HandleDqnPlay, self), -1, 10)
 	end
@@ -676,8 +676,7 @@ function G2048.GCenter:CalcReward(old_value_map, new_value_map, die, old_score, 
 		if changed then
 			score = score + (1)
 		end
-		score = score + (self:CalcSmooth(new_value_map))
-		score = score + (new_score)
+		score = score + (new_score - old_score)
 	end
 	if score <= 0 then
 		score = 1
