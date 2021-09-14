@@ -23,20 +23,14 @@ function G2048.__Browser_Shutdown()
 end
 
 G2048.g_Control = nil
+G2048.g_ADeeplearningontrol = nil
 G2048.g_LayerGroup = nil
 G2048.g_ModuleBasePath = nil
 function G2048.__Module_Setup(layer_group, control, module_base_path, script_base_path, debug)
 	G2048.g_Control = control
 	G2048.g_LayerGroup = layer_group
 	G2048.g_ModuleBasePath = module_base_path
-	if ALittle.System_GetPlatform() == "Windows" then
-		local deeplearning_path = "Module/ADeeplearning/"
-		package.cpath = package.cpath .. ";./" .. deeplearning_path .. "Other/?.dll"
-		local path = ALittle.File_GetCurrentPath()
-		ALittle.File_SetCurrentPath(path .. "/" .. deeplearning_path .. "Other")
-		require("deeplearning")
-		ALittle.File_SetCurrentPath(path)
-	end
+	G2048.g_ADeeplearningontrol = A_ModuleSystem:LoadPlugin("ADeeplearning")
 	Require(script_base_path, "GCenter")
 	G2048.g_GCenter:Setup()
 end
