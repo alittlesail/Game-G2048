@@ -91,7 +91,7 @@ class GCenter
         {
             var state_num = 16;
             var action_num = 4;
-            this._dqn_model = new ADeeplearning.ARobotDqnDnnModel(state_num, action_num, 100, 200, ADeeplearning.ARobotDqnTypes.DUELING);
+            this._dqn_model = new ADeeplearning.ARobotDqnDnnModel(state_num, action_num, 512, 1000, ADeeplearning.ARobotDqnTypes.DUELING);
 
             this._dqn_model.Load(g_ModuleBasePath.."/Other/g2048_"..state_num.."_"..action_num..".model");
 
@@ -906,8 +906,8 @@ class GCenter
 
         var reward = this.CalcReward(old_value_map, new_value_map, win == false, old_score, new_score);
         var next_state = this.CalcState();
-        this._dqn_model.SaveTransition(state, next_state, action, reward);
-        this._dqn_model.Train(50);
+        if (this._dqn_model.SaveTransition(state, next_state, action, reward))
+        	this._dqn_model.Train(50);
     
         // 检查是否游戏结束
         if (this.CheckGameWin() != null) return;

@@ -50,7 +50,7 @@ function G2048.GCenter:Setup()
 	if ADeeplearning ~= nil and ADeeplearning.ARobotDqnDnnModel ~= nil then
 		local state_num = 16
 		local action_num = 4
-		self._dqn_model = ADeeplearning.ARobotDqnDnnModel(state_num, action_num, 100, 200, 2)
+		self._dqn_model = ADeeplearning.ARobotDqnDnnModel(state_num, action_num, 512, 1000, 2)
 		self._dqn_model:Load(G2048.g_ModuleBasePath .. "/Other/g2048_" .. state_num .. "_" .. action_num .. ".model")
 		self._dqn_timer = A_LoopSystem:AddTimer(10, Lua.Bind(self.HandleDqnPlay, self), -1, 10)
 	end
@@ -747,8 +747,9 @@ function G2048.GCenter:HandleDqnPlay()
 	local new_score = self._score_text._user_data
 	local reward = self:CalcReward(old_value_map, new_value_map, win == false, old_score, new_score)
 	local next_state = self:CalcState()
-	self._dqn_model:SaveTransition(state, next_state, action, reward)
-	self._dqn_model:Train(50)
+	if self._dqn_model:SaveTransition(state, next_state, action, reward) then
+		self._dqn_model:Train(50)
+	end
 	if self:CheckGameWin() ~= nil then
 		return
 	end
