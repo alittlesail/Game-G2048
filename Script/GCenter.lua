@@ -19,8 +19,6 @@ G2048.g_GConfig = nil
 G2048.GCenter = Lua.Class(nil, "G2048.GCenter")
 
 function G2048.GCenter:Ctor()
-	___rawset(self, "_mean_total_score", 0)
-	___rawset(self, "_mean_total_count", 0)
 	___rawset(self, "_loop_group", {})
 end
 
@@ -48,14 +46,16 @@ function G2048.GCenter:Setup()
 	G2048.g_Control:PrepareTexture({"item_2", "item_4", "item_8", "item_16", "item_32", "item_64", "item_128", "item_256", "item_512", "item_1024", "item_2048"}, nil)
 	G2048.g_Control:CreateControl("main_scene", self, self._main_layer)
 	if ADeeplearning ~= nil and ADeeplearning.ARobotDqnDnnModel ~= nil then
-		local state_num = 16
-		local action_num = 4
-		self._dqn_model = ADeeplearning.ARobotDqnDnnModel(state_num, action_num, 512, 1000, 2)
-		self._dqn_model:Load(G2048.g_ModuleBasePath .. "/Other/g2048_" .. state_num .. "_" .. action_num .. ".model")
-		self._dqn_timer = A_LoopSystem:AddTimer(10, Lua.Bind(self.HandleDqnPlay, self), -1, 10)
+		self._dqn_model = ADeeplearning.ARobotDqnCnnModel(4, 4, 4, 16, 512, 1000, 2)
+		self._dqn_model:Load(G2048.g_ModuleBasePath .. "/Other/g2048_cnn.model")
+		self._dqn_timer = A_LoopSystem:AddTimer(10, Lua.Bind(self.HandleDqnPlay, self, 1), -1, 10)
 	end
+	self._mean_stat:Init(2)
 	self._mean_text.visible = self._dqn_model ~= nil
 	self._mean_score_text.visible = self._dqn_model ~= nil
+	self._loss_stat:Init(2)
+	self._loss_text.visible = self._dqn_model ~= nil
+	self._loss_score_text.visible = self._dqn_model ~= nil
 	if self._dqn_model ~= nil then
 		self._max_score_text._user_data = 0
 	else
@@ -694,7 +694,16 @@ function G2048.GCenter:HandleDrag(event)
 	self._drag_total_y = self._drag_total_y + event.delta_y
 end
 
-function G2048.GCenter:HandleDqnPlay()
+function G2048.GCenter:HandleDqnPlay(count)
+	local i = 1
+	while true do
+		if not(i <= count) then break end
+		self:HandleDqnPlayImpl()
+		i = i+(1)
+	end
+end
+
+function G2048.GCenter:HandleDqnPlayImpl()
 	local state = self:CalcState()
 	local action = 0
 	if ALittle.Math_RandomInt(1, 1000) < 1000 then
@@ -748,7 +757,8 @@ function G2048.GCenter:HandleDqnPlay()
 	local reward = self:CalcReward(old_value_map, new_value_map, win == false, old_score, new_score)
 	local next_state = self:CalcState()
 	if self._dqn_model:SaveTransition(state, next_state, action, reward) then
-		self._dqn_model:Train(50)
+		self._loss_stat:AddValue(self._dqn_model:Train(2), false)
+		self._loss_score_text.text = self._loss_stat:GetAverageValue()
 	end
 	if self:CheckGameWin() ~= nil then
 		return
@@ -791,6 +801,16 @@ function G2048.GCenter:HandleDragEnd(event)
 	end
 end
 
+function G2048.GCenter:AddAndUpdateScore()
+	self._mean_stat:AddValue(self._score_text._user_data, false)
+	self._mean_score_text.text = self._mean_stat:GetAverageValue()
+	if self._max_score_text._user_data < self._score_text._user_data then
+		self._max_score_text._user_data = self._score_text._user_data
+		self._max_score_text.text = self._max_score_text._user_data
+		G2048.g_GConfig:SetConfig("max_score", self._max_score_text._user_data, nil)
+	end
+end
+
 function G2048.GCenter:CheckGameWin()
 	local i = 1
 	while true do
@@ -801,14 +821,7 @@ function G2048.GCenter:CheckGameWin()
 			local item = self._data_map[i][j]
 			if item ~= nil and item._user_data == 2048 then
 				self:ShowMainMenu("Victory", false)
-				self._mean_total_score = self._mean_total_score + (self._score_text._user_data)
-				self._mean_total_count = self._mean_total_count + (1)
-				self._mean_score_text.text = self._mean_total_score / self._mean_total_count
-				if self._max_score_text._user_data < self._score_text._user_data then
-					self._max_score_text._user_data = self._score_text._user_data
-					self._max_score_text.text = self._max_score_text._user_data
-					G2048.g_GConfig:SetConfig("max_score", self._max_score_text._user_data, nil)
-				end
+				self:AddAndUpdateScore()
 				if self._dqn_model ~= nil then
 					self._dqn_model:Save()
 					if self._dqn_timer ~= nil then
@@ -848,15 +861,8 @@ function G2048.GCenter:CheckGameWin()
 		end
 		i = i+(1)
 	end
-	self._mean_total_score = self._mean_total_score + (self._score_text._user_data)
-	self._mean_total_count = self._mean_total_count + (1)
-	self._mean_score_text.text = self._mean_total_score / self._mean_total_count
+	self:AddAndUpdateScore()
 	self:ShowMainMenu("GameOver", false)
-	if self._max_score_text._user_data < self._score_text._user_data then
-		self._max_score_text._user_data = self._score_text._user_data
-		self._max_score_text.text = self._max_score_text._user_data
-		G2048.g_GConfig:SetConfig("max_score", self._max_score_text._user_data, nil)
-	end
 	if self._dqn_model ~= nil then
 		self._dqn_model:Save()
 		self:Restart()

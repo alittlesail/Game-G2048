@@ -39,14 +39,17 @@ class GCenter
     private double _drag_total_y;
 
     [Language(Lua)]
-    private ADeeplearning.ARobotDqnDnnModel _dqn_model;
+    private ADeeplearning.ARobotDqnModel _dqn_model;
     private int _dqn_timer;
 
     private ALittle.DisplayObject _mean_text;
     private ALittle.DisplayObject _mean_score_text;
-    private int _mean_total_score = 0;
-    private int _mean_total_count = 0;
+    private ALittle.DisplayObject _loss_text;
+    private ALittle.DisplayObject _loss_score_text;
 
+    private AUIPlugin.AUIStatLayout _mean_stat;
+    private AUIPlugin.AUIStatLayout _loss_stat;
+    
     public ctor()
     {
 	    this._loop_group = new Map<ALittle.LoopObject, ALittle.LoopObject>();
@@ -89,17 +92,19 @@ class GCenter
 
         if (ADeeplearning != null && ADeeplearning.ARobotDqnDnnModel != null)
         {
-            var state_num = 16;
-            var action_num = 4;
-            this._dqn_model = new ADeeplearning.ARobotDqnDnnModel(state_num, action_num, 512, 1000, ADeeplearning.ARobotDqnTypes.DUELING);
+            this._dqn_model = new ADeeplearning.ARobotDqnCnnModel(4, 4, 4, 16, 512, 1000, ADeeplearning.ARobotDqnTypes.DUELING);
 
-            this._dqn_model.Load(g_ModuleBasePath.."/Other/g2048_"..state_num.."_"..action_num..".model");
+            this._dqn_model.Load(g_ModuleBasePath.."/Other/g2048_cnn.model");
 
-            this._dqn_timer = A_LoopSystem.AddTimer(10, bind(this.HandleDqnPlay, this), -1, 10);
+            this._dqn_timer = A_LoopSystem.AddTimer(10, bind(this.HandleDqnPlay, this, 1), -1, 10);
         }
 
+        this._mean_stat.Init(2);
         this._mean_text.visible = this._dqn_model != null;
         this._mean_score_text.visible = this._dqn_model != null;
+        this._loss_stat.Init(2);
+        this._loss_text.visible = this._dqn_model != null;
+        this._loss_score_text.visible = this._dqn_model != null;
     
         if (this._dqn_model != null)
             this._max_score_text._user_data = 0;
@@ -844,7 +849,15 @@ class GCenter
         this._drag_total_y = this._drag_total_y + event.delta_y;
     }
 
-    private fun HandleDqnPlay()
+    private fun HandleDqnPlay(int count)
+    {
+        for (var i = 1; i <= count; 1)
+        {
+            this.HandleDqnPlayImpl();
+        }
+    }
+
+    private fun HandleDqnPlayImpl()
     {
         var state = this.CalcState();
         var action = 0;
@@ -907,7 +920,10 @@ class GCenter
         var reward = this.CalcReward(old_value_map, new_value_map, win == false, old_score, new_score);
         var next_state = this.CalcState();
         if (this._dqn_model.SaveTransition(state, next_state, action, reward))
-        	this._dqn_model.Train(50);
+        {
+            this._loss_stat.AddValue(this._dqn_model.Train(2), false);
+            this._loss_score_text.text = this._loss_stat.GetAverageValue();
+        }
     
         // 检查是否游戏结束
         if (this.CheckGameWin() != null) return;
@@ -957,6 +973,19 @@ class GCenter
         // 检查是否游戏结束
         if (this.CheckGameWin() != null) return;
     }
+
+    private fun AddAndUpdateScore()
+    {
+        this._mean_stat.AddValue(cast<int>(this._score_text._user_data), false);
+        this._mean_score_text.text = this._mean_stat.GetAverageValue();
+
+        if (cast<int>(this._max_score_text._user_data) < cast<int>(this._score_text._user_data))
+        {
+            this._max_score_text._user_data = this._score_text._user_data;
+            this._max_score_text.text = this._max_score_text._user_data;
+            g_GConfig.SetConfig("max_score", this._max_score_text._user_data, null);
+        }
+    }
     
     // true 表示赢了
     // false 表示失败了
@@ -971,16 +1000,7 @@ class GCenter
                 if (item != null && item._user_data == 2048)
                 {
                     this.ShowMainMenu("Victory", false);
-                    this._mean_total_score += cast<int>(this._score_text._user_data);
-                    this._mean_total_count += 1;
-                    this._mean_score_text.text = this._mean_total_score / this._mean_total_count;
-
-                    if (cast<int>(this._max_score_text._user_data) < cast<int>(this._score_text._user_data))
-                    {
-                        this._max_score_text._user_data = this._score_text._user_data;
-                        this._max_score_text.text = this._max_score_text._user_data;
-                        g_GConfig.SetConfig("max_score", this._max_score_text._user_data, null);
-                    }
+                    this.AddAndUpdateScore();                    
                     if (this._dqn_model != null)
                     {
                         this._dqn_model.Save();
@@ -1030,18 +1050,8 @@ class GCenter
             }
         }
 
-
-        this._mean_total_score += cast<int>(this._score_text._user_data);
-        this._mean_total_count += 1;
-        this._mean_score_text.text = this._mean_total_score / this._mean_total_count;
-
+        this.AddAndUpdateScore();
         this.ShowMainMenu("GameOver", false);
-        if (cast<int>(this._max_score_text._user_data) < cast<int>(this._score_text._user_data))
-        {
-            this._max_score_text._user_data = this._score_text._user_data;
-            this._max_score_text.text = this._max_score_text._user_data;
-            g_GConfig.SetConfig("max_score", this._max_score_text._user_data, null);
-        }
         if (this._dqn_model != null)
         {
             this._dqn_model.Save();
