@@ -92,11 +92,10 @@ class GCenter
 
         if (ADeeplearning != null && ADeeplearning.ARobotDqnDnnModel != null)
         {
-            this._dqn_model = new ADeeplearning.ARobotDqnCnnModel(4, 4, 4, 16, 512, 1000, ADeeplearning.ARobotDqnTypes.DUELING);
-
+            this._dqn_model = new ADeeplearning.ARobotDqnCnnModel(4, 4, 4, [16, 32, 256], 512, 1000, ADeeplearning.ARobotDqnTypes.DOUBLE);
             this._dqn_model.Load(g_ModuleBasePath.."/Other/g2048_cnn.model");
 
-            this._dqn_timer = A_LoopSystem.AddTimer(10, bind(this.HandleDqnPlay, this, 1), -1, 10);
+            this._dqn_timer = A_LoopSystem.AddTimer(10, bind(this.HandleDqnPlay, this, 1), -1, 100);
         }
 
         this._mean_stat.Init(2);
@@ -825,8 +824,7 @@ class GCenter
         {
             if (changed) score += 1;
 
-            // score += this.CalcSmooth(new_value_map);
-
+            // score += this.CalcMonotonous(new_value_map) - this.CalcMonotonous(old_value_map);
             score += new_score - old_score;
         }
 
