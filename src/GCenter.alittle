@@ -92,7 +92,7 @@ class GCenter
 
         if (ADeeplearning != null && ADeeplearning.ARobotDqnDnnModel != null)
         {
-            this._dqn_model = new ADeeplearning.ARobotDqnCnnModel(4, 4, 4, [16, 32, 256], 512, 1000, ADeeplearning.ARobotDqnTypes.DOUBLE);
+            this._dqn_model = new ADeeplearning.ARobotDqnCnnModel(4, 4, 4, [32, 64, 128], 1024, 1000, ADeeplearning.ARobotDqnTypes.DOUBLE);
             this._dqn_model.Load(g_ModuleBasePath.."/Other/g2048_cnn.model");
 
             this._dqn_timer = A_LoopSystem.AddTimer(10, bind(this.HandleDqnPlay, this, 1), -1, 100);
