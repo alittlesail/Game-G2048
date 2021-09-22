@@ -42,7 +42,7 @@ public async static __Module_Setup(ALittle.DisplayLayout layer_group, ALittle.Co
 	g_ModuleBasePath = module_base_path;
 
     g_ADeeplearningontrol = A_ModuleSystem.LoadPlugin("ADeeplearning");
-
+    
 	alittle.Require(script_base_path, "GCenter");
 	g_GCenter.Setup();
 }

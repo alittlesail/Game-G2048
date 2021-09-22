@@ -33,6 +33,7 @@ class GCenter
     private ALittle.DisplayLayout _tile_container;
     
     private bool _item_moved;
+    private int _invalid_step = 0;
     
     private ALittle.DisplayObject _drag_quad;
     private double _drag_total_x;
@@ -152,6 +153,7 @@ class GCenter
     
         this._item_moved = false;
         this._loop_delay = 0;
+        this._invalid_step = 0;
 
         this._drag_quad.DelayFocus();
     }
@@ -883,6 +885,9 @@ class GCenter
         	this.CalcUp();
 
         if (this._item_moved == false)
+            this._invalid_step += 1;
+        /*
+        if (this._item_moved == false)
         {
             var new_value_map = this.CalcValueMap();
 
@@ -909,6 +914,7 @@ class GCenter
                 if (this._item_moved) break;
             }
         }
+		*/
 
         var new_value_map = this.CalcValueMap();
 
@@ -984,6 +990,46 @@ class GCenter
             g_GConfig.SetConfig("max_score", this._max_score_text._user_data, null);
         }
     }
+
+    // 检查是否还有空位
+    public fun CanWalk() : bool
+    {
+        for (var i = 1; i <= 4; 1)
+        {
+            for (var j = 1; j <= 4; 1)
+            {
+                var item = this._data_map[i][j];
+                if (item == null)
+                    return true;
+                
+                // 检查左边
+                if (j > 1
+                && (this._data_map[i][j-1] == null
+                || this._data_map[i][j-1]._user_data == item._user_data))
+                    return true;
+                
+                    // 检查右边
+                if (j < 4
+                && (this._data_map[i][j+1] == null
+                || this._data_map[i][j+1]._user_data == item._user_data))
+                    return true;
+
+                    // 检查上边
+                if (i > 1
+                && (this._data_map[i-1][j] == null
+                || this._data_map[i-1][j]._user_data == item._user_data))
+                    return true;
+                
+                    // 检查下边
+                if (i < 4
+                && (this._data_map[i+1][j] == null
+                || this._data_map[i+1][j]._user_data == item._user_data))
+                    return true;
+            }
+        }
+
+        return false;
+    }
     
     // true 表示赢了
     // false 表示失败了
@@ -1013,39 +1059,14 @@ class GCenter
                 }
             }
         }
-    
-        for (var i = 1; i <= 4; 1)
-        {
-            for (var j = 1; j <= 4; 1)
-            {
-                var item = this._data_map[i][j];
-                if (item == null)
-                    return null;
-                    
-                // 检查左边
-                if (j > 1
-                && (this._data_map[i][j-1] == null
-                    || this._data_map[i][j-1]._user_data == item._user_data))
-                    return null;
-                    
-                // 检查右边
-                if (j < 4
-                && (this._data_map[i][j+1] == null
-                    || this._data_map[i][j+1]._user_data == item._user_data))
-                    return null;
 
-                // 检查上边
-                if (i > 1
-                && (this._data_map[i-1][j] == null
-                    || this._data_map[i-1][j]._user_data == item._user_data))
-                    return null;
-                    
-                // 检查下边
-                if (i < 4
-                && (this._data_map[i+1][j] == null
-                    || this._data_map[i+1][j]._user_data == item._user_data))
-                    return null;
-            }
+        if (this._dqn_model != null && this._invalid_step >= 10)
+        {
+
+        }
+        else
+        {
+            if (this.CanWalk()) return null;
         }
 
         this.AddAndUpdateScore();

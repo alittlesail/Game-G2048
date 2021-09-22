@@ -19,6 +19,7 @@ G2048.g_GConfig = nil
 G2048.GCenter = Lua.Class(nil, "G2048.GCenter")
 
 function G2048.GCenter:Ctor()
+	___rawset(self, "_invalid_step", 0)
 	___rawset(self, "_loop_group", {})
 end
 
@@ -92,6 +93,7 @@ function G2048.GCenter:Restart()
 	self:GenerateItem(0)
 	self._item_moved = false
 	self._loop_delay = 0
+	self._invalid_step = 0
 	self._drag_quad:DelayFocus()
 end
 
@@ -726,30 +728,7 @@ function G2048.GCenter:HandleDqnPlayImpl()
 		self:CalcUp()
 	end
 	if self._item_moved == false then
-		local new_value_map = self:CalcValueMap()
-		local win = self:CheckGameWin()
-		local new_score = self._score_text._user_data
-		local reward = self:CalcReward(old_value_map, new_value_map, win == false, old_score, new_score)
-		local next_state = self:CalcState()
-		self._dqn_model:SaveTransition(state, next_state, action, reward)
-		local i = 0
-		while true do
-			if not(i <= 3) then break end
-			action = i
-			if action == 0 then
-				self:CalcDown()
-			elseif action == 1 then
-				self:CalcRight()
-			elseif action == 2 then
-				self:CalcLeft()
-			elseif action == 3 then
-				self:CalcUp()
-			end
-			if self._item_moved then
-				break
-			end
-			i = i+(1)
-		end
+		self._invalid_step = self._invalid_step + (1)
 	end
 	local new_value_map = self:CalcValueMap()
 	local win = self:CheckGameWin()
@@ -811,6 +790,36 @@ function G2048.GCenter:AddAndUpdateScore()
 	end
 end
 
+function G2048.GCenter:CanWalk()
+	local i = 1
+	while true do
+		if not(i <= 4) then break end
+		local j = 1
+		while true do
+			if not(j <= 4) then break end
+			local item = self._data_map[i][j]
+			if item == nil then
+				return true
+			end
+			if j > 1 and (self._data_map[i][j - 1] == nil or self._data_map[i][j - 1]._user_data == item._user_data) then
+				return true
+			end
+			if j < 4 and (self._data_map[i][j + 1] == nil or self._data_map[i][j + 1]._user_data == item._user_data) then
+				return true
+			end
+			if i > 1 and (self._data_map[i - 1][j] == nil or self._data_map[i - 1][j]._user_data == item._user_data) then
+				return true
+			end
+			if i < 4 and (self._data_map[i + 1][j] == nil or self._data_map[i + 1][j]._user_data == item._user_data) then
+				return true
+			end
+			j = j+(1)
+		end
+		i = i+(1)
+	end
+	return false
+end
+
 function G2048.GCenter:CheckGameWin()
 	local i = 1
 	while true do
@@ -835,31 +844,11 @@ function G2048.GCenter:CheckGameWin()
 		end
 		i = i+(1)
 	end
-	local i = 1
-	while true do
-		if not(i <= 4) then break end
-		local j = 1
-		while true do
-			if not(j <= 4) then break end
-			local item = self._data_map[i][j]
-			if item == nil then
-				return nil
-			end
-			if j > 1 and (self._data_map[i][j - 1] == nil or self._data_map[i][j - 1]._user_data == item._user_data) then
-				return nil
-			end
-			if j < 4 and (self._data_map[i][j + 1] == nil or self._data_map[i][j + 1]._user_data == item._user_data) then
-				return nil
-			end
-			if i > 1 and (self._data_map[i - 1][j] == nil or self._data_map[i - 1][j]._user_data == item._user_data) then
-				return nil
-			end
-			if i < 4 and (self._data_map[i + 1][j] == nil or self._data_map[i + 1][j]._user_data == item._user_data) then
-				return nil
-			end
-			j = j+(1)
+	if self._dqn_model ~= nil and self._invalid_step >= 10 then
+	else
+		if self:CanWalk() then
+			return nil
 		end
-		i = i+(1)
 	end
 	self:AddAndUpdateScore()
 	self:ShowMainMenu("GameOver", false)
