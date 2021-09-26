@@ -93,10 +93,14 @@ class GCenter
 
         if (ADeeplearning != null && ADeeplearning.ARobotDqnDnnModel != null)
         {
-            this._dqn_model = new ADeeplearning.ARobotDqnCnnModel(4, 4, 4, [32, 64, 128], 1024, 1000, ADeeplearning.ARobotDqnTypes.DOUBLE);
-            this._dqn_model.Load(g_ModuleBasePath.."/Other/g2048_cnn.model");
+            var conv2d_list = [32];
+            var linear_dim = 1024;
+            this._dqn_model = new ADeeplearning.ARobotDqnDnnModel(16, 4, linear_dim, 1000, ADeeplearning.ARobotDqnTypes.DUELING);
 
-            this._dqn_timer = A_LoopSystem.AddTimer(10, bind(this.HandleDqnPlay, this, 1), -1, 100);
+            var path = g_ModuleBasePath.."/Other/g2048_dnn_"..linear_dim..".model";
+            this._dqn_model.Load(path);
+
+            this._dqn_timer = A_LoopSystem.AddTimer(10, bind(this.HandleDqnPlay, this, 1), -1, 10);
         }
 
         this._mean_stat.Init(2);
@@ -861,7 +865,7 @@ class GCenter
     {
         var state = this.CalcState();
         var action = 0;
-        if (ALittle.Math_RandomInt(1, 1000) < 1000)
+        if (ALittle.Math_RandomInt(1, 100) < 100)
         	action = this._dqn_model.ChooseAction(state);
         else
         	action = ALittle.Math_RandomInt(0, 3);
@@ -886,6 +890,8 @@ class GCenter
 
         if (this._item_moved == false)
             this._invalid_step += 1;
+        else
+            this._invalid_step = 0;
         /*
         if (this._item_moved == false)
         {
@@ -925,7 +931,7 @@ class GCenter
         var next_state = this.CalcState();
         if (this._dqn_model.SaveTransition(state, next_state, action, reward))
         {
-            this._loss_stat.AddValue(this._dqn_model.Train(2), false);
+            this._loss_stat.AddValue(this._dqn_model.Train(100), false);
             this._loss_score_text.text = this._loss_stat.GetAverageValue();
         }
     
@@ -1060,7 +1066,7 @@ class GCenter
             }
         }
 
-        if (this._dqn_model != null && this._invalid_step >= 10)
+        if (this._dqn_model != null && this._invalid_step >= 100)
         {
 
         }

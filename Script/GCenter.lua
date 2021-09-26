@@ -47,9 +47,12 @@ function G2048.GCenter:Setup()
 	G2048.g_Control:PrepareTexture({"item_2", "item_4", "item_8", "item_16", "item_32", "item_64", "item_128", "item_256", "item_512", "item_1024", "item_2048"}, nil)
 	G2048.g_Control:CreateControl("main_scene", self, self._main_layer)
 	if ADeeplearning ~= nil and ADeeplearning.ARobotDqnDnnModel ~= nil then
-		self._dqn_model = ADeeplearning.ARobotDqnCnnModel(4, 4, 4, {32, 64, 128}, 1024, 1000, 3)
-		self._dqn_model:Load(G2048.g_ModuleBasePath .. "/Other/g2048_cnn.model")
-		self._dqn_timer = A_LoopSystem:AddTimer(10, Lua.Bind(self.HandleDqnPlay, self, 1), -1, 100)
+		local conv2d_list = {32}
+		local linear_dim = 1024
+		self._dqn_model = ADeeplearning.ARobotDqnDnnModel(16, 4, linear_dim, 1000, 2)
+		local path = G2048.g_ModuleBasePath .. "/Other/g2048_dnn_" .. linear_dim .. ".model"
+		self._dqn_model:Load(path)
+		self._dqn_timer = A_LoopSystem:AddTimer(10, Lua.Bind(self.HandleDqnPlay, self, 1), -1, 10)
 	end
 	self._mean_stat:Init(2)
 	self._mean_text.visible = self._dqn_model ~= nil
@@ -708,7 +711,7 @@ end
 function G2048.GCenter:HandleDqnPlayImpl()
 	local state = self:CalcState()
 	local action = 0
-	if ALittle.Math_RandomInt(1, 1000) < 1000 then
+	if ALittle.Math_RandomInt(1, 100) < 100 then
 		action = self._dqn_model:ChooseAction(state)
 	else
 		action = ALittle.Math_RandomInt(0, 3)
@@ -729,6 +732,8 @@ function G2048.GCenter:HandleDqnPlayImpl()
 	end
 	if self._item_moved == false then
 		self._invalid_step = self._invalid_step + (1)
+	else
+		self._invalid_step = 0
 	end
 	local new_value_map = self:CalcValueMap()
 	local win = self:CheckGameWin()
@@ -736,7 +741,7 @@ function G2048.GCenter:HandleDqnPlayImpl()
 	local reward = self:CalcReward(old_value_map, new_value_map, win == false, old_score, new_score)
 	local next_state = self:CalcState()
 	if self._dqn_model:SaveTransition(state, next_state, action, reward) then
-		self._loss_stat:AddValue(self._dqn_model:Train(2), false)
+		self._loss_stat:AddValue(self._dqn_model:Train(100), false)
 		self._loss_score_text.text = self._loss_stat:GetAverageValue()
 	end
 	if self:CheckGameWin() ~= nil then
@@ -844,7 +849,7 @@ function G2048.GCenter:CheckGameWin()
 		end
 		i = i+(1)
 	end
-	if self._dqn_model ~= nil and self._invalid_step >= 10 then
+	if self._dqn_model ~= nil and self._invalid_step >= 100 then
 	else
 		if self:CanWalk() then
 			return nil
